@@ -327,16 +327,6 @@ let
               in
               builtins.foldl' (s: c: applyCommand m.to s c) base out.commands;
 
-      drain =
-        state:
-        if state.queue == [ ] || (state.halted or false) then
-          [ state ]
-        else
-          let
-            next = handleOne state;
-          in
-          [ state ] ++ (drain next);
-
       bootMsgs = map (id: {
         to = id;
         from = "system";
@@ -351,19 +341,29 @@ let
         halted = false;
       };
 
-      advance =
-        n: state:
-        if n <= 0 || state.queue == [ ] || (state.halted or false) then
-          state
-        else
-          advance (n - 1) (handleOne state);
+      statesWithKeys = builtins.genericClosure {
+        startSet = [
+          {
+            key = 0;
+            state = startState;
+          }
+        ];
+        operator =
+          item:
+          if item.state.queue == [ ] || (item.state.halted or false) then
+            [ ]
+          else
+            [
+              {
+                key = item.key + 1;
+                state = handleOne item.state;
+              }
+            ];
+      };
 
-      statesRaw = if includeStates then drain startState else [ ];
-      finalRaw =
-        if includeStates then
-          builtins.elemAt statesRaw ((builtins.length statesRaw) - 1)
-        else
-          advance 256 startState;
+      allStates = map (x: x.state) statesWithKeys;
+      finalRaw = builtins.elemAt allStates ((builtins.length allStates) - 1);
+      statesRaw = if includeStates then allStates else [ ];
     in
     {
       states = if includeStates then map stripFns statesRaw else [ ];

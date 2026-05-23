@@ -99,6 +99,10 @@
           inherit ned bend;
           actorsSystem = import ./actors-ned/actors-system.nix { inherit ned bend; };
         };
+        ned.actors-nix = import ./actors.nix {
+          inherit ned bend;
+          actorsSystem = import ./actors-nix/actors-system.nix { inherit ned bend; };
+        };
         zen.auto-wired = zen.run [
           {
             options.aa = zen.opt zen.merge.first zen.types.int;

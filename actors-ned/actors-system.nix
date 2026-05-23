@@ -385,38 +385,29 @@ let
           ;
       };
       inherit (core) stepOne;
+      statesWithKeys = builtins.genericClosure {
+        startSet = [
+          {
+            key = 0;
+            state = start;
+          }
+        ];
+        operator =
+          item:
+          if item.state.queue == [ ] || (item.state.halted or false) then
+            [ ]
+          else
+            [
+              {
+                key = item.key + 1;
+                state = stepOne item.state;
+              }
+            ];
+      };
 
-      stepLimit = 256;
-      tick-s = ned.st.fromList (builtins.genList (i: i) stepLimit);
-
-      statesRawAll = if includeStates then (tick-s.scanl (s: _tick: stepOne s) start).toList else [ ];
-
-      trim =
-        xs:
-        let
-          go =
-            i:
-            if i + 1 >= builtins.length xs then
-              i
-            else
-              let
-                a = builtins.elemAt xs i;
-                b = builtins.elemAt xs (i + 1);
-              in
-              if (a.queue == [ ] || (a.halted or false)) && a == b then i else go (i + 1);
-          end = go 0;
-        in
-        builtins.genList (i: builtins.elemAt xs i) (end + 1);
-
-      advance =
-        n: s: if n <= 0 || s.queue == [ ] || (s.halted or false) then s else advance (n - 1) (stepOne s);
-
-      statesRaw = if includeStates then trim statesRawAll else [ ];
-      finalRaw =
-        if includeStates then
-          builtins.elemAt statesRaw ((builtins.length statesRaw) - 1)
-        else
-          advance stepLimit start;
+      allStates = map (x: x.state) statesWithKeys;
+      statesRaw = if includeStates then allStates else [ ];
+      finalRaw = builtins.elemAt allStates ((builtins.length allStates) - 1);
     in
     {
       states = if includeStates then map stripFns statesRaw else [ ];

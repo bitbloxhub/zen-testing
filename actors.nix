@@ -92,6 +92,32 @@ let
     };
   };
 
+  sinkActor = actorsSystem.mkActor {
+    state = {
+      seen = 0;
+    };
+    lenses = {
+      pong = actorsSystem.msg.mkLens (
+        bend.recordAll {
+          via = bend.str;
+          text = bend.str;
+        }
+      );
+    };
+    stateLens = bend.recordAll {
+      seen = bend.int;
+    };
+    on = {
+      pong = _actorId: actor: _msg: {
+        state = (actor.state or { }) // {
+          seen = (actor.state.seen or 0) + 1;
+        };
+        commands = [ ];
+        events = [ ];
+      };
+    };
+  };
+
   rootActor = actorsSystem.mkActor {
     state = {
       pongs = 0;
@@ -256,6 +282,21 @@ let
     ];
   };
 
+  stackSafeCase = actorsSystem.run {
+    actors = {
+      echo = echoActor;
+      sink = sinkActor;
+    };
+    queue = builtins.genList (_: {
+      to = "echo";
+      from = "sink";
+      type = "ping";
+      payload = {
+        text = "stress";
+      };
+    }) 20480;
+  };
+
   invalidStateActor = actorsSystem.mkActor {
     state = {
       n = 0;
@@ -291,5 +332,9 @@ in
     strict-first-error-unknown-msg = (strictCase.final.haltError.kind or "") == "unknown-msg-type";
     bad-actor-message = hasKind "bad-actor-message" badActorMsgCase.final.errors;
     invalid-state-event = hasKind "invalid-state" invalidStateCase.final.events;
+    stack-safety-check =
+      (builtins.length stackSafeCase.final.errors) == 0
+      && (stackSafeCase.final.halted or false) == false
+      && (builtins.length stackSafeCase.final.queue) == 0;
   };
 }
