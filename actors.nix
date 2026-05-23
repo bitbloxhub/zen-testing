@@ -11,9 +11,11 @@ let
       lastFrom = "";
     };
     lenses = {
-      ping = actorsSystem.msg.mkLens (bend.recordAll {
-        text = bend.str;
-      });
+      ping = actorsSystem.msg.mkLens (
+        bend.recordAll {
+          text = bend.str;
+        }
+      );
     };
     stateLens = bend.recordAll {
       replies = bend.int;
@@ -30,10 +32,19 @@ let
           (actorsSystem.cmd.send {
             to = msg.from;
             type = "pong";
-            payload = { via = actorId; worker = true; };
+            payload = {
+              via = actorId;
+              worker = true;
+            };
           })
         ];
-        events = [ { kind = "worker-replied"; actor = actorId; to = msg.from; } ];
+        events = [
+          {
+            kind = "worker-replied";
+            actor = actorId;
+            to = msg.from;
+          }
+        ];
       };
     };
   };
@@ -44,9 +55,11 @@ let
       lastFrom = "";
     };
     lenses = {
-      ping = actorsSystem.msg.mkLens (bend.recordAll {
-        text = bend.str;
-      });
+      ping = actorsSystem.msg.mkLens (
+        bend.recordAll {
+          text = bend.str;
+        }
+      );
     };
     stateLens = bend.recordAll {
       replies = bend.int;
@@ -62,10 +75,19 @@ let
           (actorsSystem.cmd.send {
             to = msg.from;
             type = "pong";
-            payload = { via = actorId; text = msg.payload.text or ""; };
+            payload = {
+              via = actorId;
+              text = msg.payload.text or "";
+            };
           })
         ];
-        events = [ { kind = "echo-replied"; actor = actorId; to = msg.from; } ];
+        events = [
+          {
+            kind = "echo-replied";
+            actor = actorId;
+            to = msg.from;
+          }
+        ];
       };
     };
   };
@@ -76,13 +98,18 @@ let
       booted = false;
       boots = 0;
       spawned = { };
-      lastPong = { via = ""; text = ""; };
+      lastPong = {
+        via = "";
+        text = "";
+      };
     };
     lenses = {
-      pong = actorsSystem.msg.mkLens (bend.recordAll {
-        via = bend.str;
-        text = bend.str;
-      });
+      pong = actorsSystem.msg.mkLens (
+        bend.recordAll {
+          via = bend.str;
+          text = bend.str;
+        }
+      );
     };
     stateLens = bend.recordAll {
       pongs = bend.int;
@@ -108,18 +135,34 @@ let
           (actorsSystem.cmd.send {
             to = "echo";
             type = "ping";
-            payload = { text = "hello"; };
+            payload = {
+              text = "hello";
+            };
           })
         ];
-        events = [ { kind = "root-boot"; actor = actorId; } ];
+        events = [
+          {
+            kind = "root-boot";
+            actor = actorId;
+          }
+        ];
       };
 
       "$sys.spawned" = actorId: actor: msg: {
         state = (actor.state or { }) // {
-          spawned = (actor.state.spawned or { }) // { ${"${msg.payload.name}"} = msg.payload.id; };
+          spawned = (actor.state.spawned or { }) // {
+            ${"${msg.payload.name}"} = msg.payload.id;
+          };
         };
         commands = [ ];
-        events = [ { kind = "spawn-ack"; actor = actorId; name = msg.payload.name; id = msg.payload.id; } ];
+        events = [
+          {
+            kind = "spawn-ack";
+            actor = actorId;
+            name = msg.payload.name;
+            id = msg.payload.id;
+          }
+        ];
       };
 
       pong = actorId: actor: msg: {
@@ -128,7 +171,14 @@ let
           lastPong = msg.payload;
         };
         commands = [ ];
-        events = [ { kind = "got-pong"; actor = actorId; from = msg.from; payload = msg.payload; } ];
+        events = [
+          {
+            kind = "got-pong";
+            actor = actorId;
+            from = msg.from;
+            payload = msg.payload;
+          }
+        ];
       };
     };
   };
@@ -146,8 +196,20 @@ let
       echo = echoActor;
     };
     queue = [
-      { to = "root"; from = "tester"; type = "ping"; payload = { text = "bad"; }; }
-      { to = "root"; from = "tester"; type = "$sys.boot"; payload = { }; }
+      {
+        to = "root";
+        from = "tester";
+        type = "ping";
+        payload = {
+          text = "bad";
+        };
+      }
+      {
+        to = "root";
+        from = "tester";
+        type = "$sys.boot";
+        payload = { };
+      }
     ];
   };
   hasKind = kind: xs: builtins.any (x: (x.kind or null) == kind) xs;
@@ -159,8 +221,20 @@ let
     };
     mode = "strict";
     queue = [
-      { to = "root"; from = "tester"; type = "ping"; payload = { text = "bad"; }; }
-      { to = "root"; from = "tester"; type = "$sys.boot"; payload = { }; }
+      {
+        to = "root";
+        from = "tester";
+        type = "ping";
+        payload = {
+          text = "bad";
+        };
+      }
+      {
+        to = "root";
+        from = "tester";
+        type = "$sys.boot";
+        payload = { };
+      }
     ];
   };
 
@@ -170,16 +244,28 @@ let
       echo = echoActor;
     };
     queue = [
-      { to = "root"; from = "tester"; type = "pong"; payload = { via = 1; text = 2; }; }
+      {
+        to = "root";
+        from = "tester";
+        type = "pong";
+        payload = {
+          via = 1;
+          text = 2;
+        };
+      }
     ];
   };
 
   invalidStateActor = actorsSystem.mkActor {
-    state = { n = 0; };
+    state = {
+      n = 0;
+    };
     stateLens = bend.recordAll { n = bend.int; };
     on = {
       "$sys.boot" = _id: _actor: _msg: {
-        state = { n = "bad"; };
+        state = {
+          n = "bad";
+        };
         commands = [ ];
         events = [ ];
       };
@@ -187,7 +273,9 @@ let
   };
 
   invalidStateCase = actorsSystem.run {
-    actors = { bad = invalidStateActor; };
+    actors = {
+      bad = invalidStateActor;
+    };
   };
 in
 {

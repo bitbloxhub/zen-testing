@@ -28,21 +28,20 @@
             normalPrio = mkPrio 500;
             lowPrio = mkPrio 100;
 
-            asPrio = v:
-              if builtins.isAttrs v && v ? priority && v ? value
-              then v
-              else normalPrio v;
+            asPrio = v: if builtins.isAttrs v && v ? priority && v ? value then v else normalPrio v;
 
-            pick = old: new:
-              if new.priority >= old.priority then new else old;
+            pick = old: new: if new.priority >= old.priority then new else old;
 
-            mergeDelta = acc: delta:
-              lib.foldlAttrs (a: k: v:
+            mergeDelta =
+              acc: delta:
+              lib.foldlAttrs (
+                a: k: v:
                 let
                   next = asPrio v;
                   prev = a.${k} or null;
                 in
-                a // {
+                a
+                // {
                   ${"${k}"} = if prev == null then next else pick prev next;
                 }
               ) acc delta;
@@ -62,22 +61,24 @@
               })
             ];
 
-            eval =
-              bind (reader.asks (_env: modules)) (mods:
-                bind (reader.ask) (_base:
-                  let
-                    resolved = builtins.foldl' (acc: modFn:
-                      let
-                        env = lib.mapAttrs (_: x: x.value) acc;
-                        delta = modFn env;
-                      in
-                      mergeDelta acc delta
-                    ) {} mods;
-                    finalEnv = lib.mapAttrs (_: x: x.value) resolved;
-                  in
-                  pure finalEnv
-                )
-              );
+            eval = bind (reader.asks (_env: modules)) (
+              mods:
+              bind (reader.ask) (
+                _base:
+                let
+                  resolved = builtins.foldl' (
+                    acc: modFn:
+                    let
+                      env = lib.mapAttrs (_: x: x.value) acc;
+                      delta = modFn env;
+                    in
+                    mergeDelta acc delta
+                  ) { } mods;
+                  finalEnv = lib.mapAttrs (_: x: x.value) resolved;
+                in
+                pure finalEnv
+              )
+            );
           in
           fx.run eval reader.handler { };
 
@@ -96,6 +97,7 @@
           };
         ned.actors = import ./actors.nix {
           inherit ned bend;
+          actorsSystem = import ./actors-ned/actors-system.nix { inherit ned bend; };
         };
         zen.auto-wired = zen.run [
           {
@@ -111,16 +113,18 @@
         zen.test1 = zen.run [
           {
             options.hosts = zen.opt zen.merge.attrs {
-              get = raw:
+              get =
+                raw:
                 let
-                  hostLens = (zen.types.submod {
-                    services = zen.types.submod {
-                      cluster = zen.types.submod {
-                        node_id = zen.types.singleLineStr;
-                        cluster = zen.types.singleLineStr;
+                  hostLens =
+                    (zen.types.submod {
+                      services = zen.types.submod {
+                        cluster = zen.types.submod {
+                          node_id = zen.types.singleLineStr;
+                          cluster = zen.types.singleLineStr;
+                        };
                       };
-                    };
-                  }).inner;
+                    }).inner;
                   validated = (bend.eachValue hostLens).get raw;
                 in
                 if validated ? left then
@@ -131,9 +135,9 @@
                     clusterOf = hostName: hosts.${hostName}.services.cluster.cluster;
                     withPeers = builtins.mapAttrs (hostName: hostCfg: {
                       services.cluster = hostCfg.services.cluster // {
-                        peers = builtins.filter (otherHost: otherHost != hostName && clusterOf otherHost == clusterOf hostName) (
-                          builtins.attrNames hosts
-                        );
+                        peers = builtins.filter (
+                          otherHost: otherHost != hostName && clusterOf otherHost == clusterOf hostName
+                        ) (builtins.attrNames hosts);
                       };
                     }) hosts;
                   in
