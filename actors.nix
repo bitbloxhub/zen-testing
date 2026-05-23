@@ -313,11 +313,86 @@ let
     };
   };
 
+  dynamicLensActor = actorsSystem.mkActor {
+    state = {
+      phase = "text";
+      seen = 0;
+      last = null;
+    };
+    lenses = state: {
+      ping = actorsSystem.msg.mkLens (
+        if (state.phase or "text") == "text" then
+          bend.recordAll { text = bend.str; }
+        else
+          bend.recordAll { n = bend.int; }
+      );
+    };
+    stateLens = bend.recordAll {
+      phase = bend.str;
+      seen = bend.int;
+      last = bend.identity;
+    };
+    on = {
+      ping =
+        _id: actor: msg:
+        let
+          nextPhase = if (actor.state.phase or "text") == "text" then "num" else "text";
+        in
+        {
+          state = (actor.state or { }) // {
+            phase = nextPhase;
+            seen = (actor.state.seen or 0) + 1;
+            last = msg.payload;
+          };
+          commands = [ ];
+          events = [
+            {
+              kind = "dynamic-lens-step";
+              phase = nextPhase;
+            }
+          ];
+        };
+    };
+  };
+
   invalidStateCase = actorsSystem.run {
     actors = {
       bad = invalidStateActor;
     };
   };
+
+  dynamicLensCase = actorsSystem.run {
+    actors = {
+      dyn = dynamicLensActor;
+    };
+    queue = [
+      {
+        to = "dyn";
+        from = "tester";
+        type = "ping";
+        payload = {
+          text = "hello";
+        };
+      }
+      {
+        to = "dyn";
+        from = "tester";
+        type = "ping";
+        payload = {
+          n = 7;
+        };
+      }
+      {
+        to = "dyn";
+        from = "tester";
+        type = "ping";
+        payload = {
+          n = 9;
+        };
+      }
+    ];
+  };
+
 in
 {
   normal = base;
@@ -325,6 +400,7 @@ in
   strictErrs = strictCase.final;
   badActorMsgErrs = badActorMsgCase.final;
   invalidState = invalidStateCase.final;
+  dynamicLens = dynamicLensCase.final;
   tests = {
     unknown-msg-type = hasKind "unknown-msg-type" errorCase.final.errors;
     spawn-collision = hasKind "spawn-collision" errorCase.final.errors;
@@ -332,6 +408,9 @@ in
     strict-first-error-unknown-msg = (strictCase.final.haltError.kind or "") == "unknown-msg-type";
     bad-actor-message = hasKind "bad-actor-message" badActorMsgCase.final.errors;
     invalid-state-event = hasKind "invalid-state" invalidStateCase.final.events;
+    dynamic-lens-bad-actor-message = hasKind "bad-actor-message" dynamicLensCase.final.errors;
+    dynamic-lens-seen-two = (dynamicLensCase.final.actors.dyn.state.seen or 0) == 2;
+    dynamic-lens-last-num = (dynamicLensCase.final.actors.dyn.state.last.n or (-1)) == 7;
     stack-safety-check =
       (builtins.length stackSafeCase.final.errors) == 0
       && (stackSafeCase.final.halted or false) == false

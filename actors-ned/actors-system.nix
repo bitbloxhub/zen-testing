@@ -94,8 +94,13 @@ let
           };
     in
     {
-      inherit step state stateLens;
-      messageParsers = lenses;
+      inherit
+        step
+        state
+        stateLens
+        lenses
+        ;
+      messageParsers = if builtins.isFunction lenses then lenses state else lenses;
     };
 
   cmd = {
@@ -128,6 +133,7 @@ let
         builtins.removeAttrs a [
           "step"
           "messageParsers"
+          "lenses"
           "stateLens"
         ]
       ) s.actors;
@@ -287,7 +293,12 @@ let
                     { right = m; }
                   else
                     let
-                      p = actor.messageParsers.${m.type} or null;
+                      parsers =
+                        if builtins.isFunction (actor.lenses or null) then
+                          actor.lenses (actor.state or { })
+                        else
+                          (actor.messageParsers or actor.lenses or { });
+                      p = parsers.${m.type} or null;
                     in
                     if p == null then null else p.get m;
               in
